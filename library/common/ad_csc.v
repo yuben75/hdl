@@ -93,6 +93,7 @@ module ad_csc #(
     sync_2_m <= sync_1_m;
     sync_3_m <= sync_2_m;
     sync_4_m <= sync_3_m;
+    sync_5_m <= sync_4_m;
   end
 
   assign color1 = {1'd0,    data[23:16]};
@@ -114,12 +115,12 @@ module ad_csc #(
   end
 
   generate
-    if (YCbCr_2_RGB) begin // in RGB to YCbCr there are no overflows or underflows
+    // in RGB to YCbCr there are no overflows or underflows
+    if (YCbCr_2_RGB) begin
       // output registers, output is unsigned (0 if sum is < 0) and saturated.
       // the inputs are expected to be 1.4.20 format (output is 8bits).
 
       always @(posedge clk) begin
-        sync_5_m <= sync_4_m;
         if (s_data_3[27] == 1'b1) begin
           csc_data_d <= 8'h0;
         end else if (s_data_3[26:24] != 3'b0) begin

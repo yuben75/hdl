@@ -58,7 +58,12 @@ module ad_csc_CrYCb2RGB #(
 
   // red
 
-  ad_csc_1 #(.DELAY_DATA_WIDTH(DELAY_DATA_WIDTH)) i_csc_1_R (
+  ad_csc  #(
+    .DELAY_DW (DELAY_DATA_WIDTH),
+    .MUL_COEF_DW (18),
+    .SUM_COEF_DW (28),
+    .YCbCr_2_RGB (1))
+  i_csc_R (
     .clk (clk),
     .sync (CrYCb_sync),
     .data (CrYCb_data),
@@ -71,7 +76,11 @@ module ad_csc_CrYCb2RGB #(
 
   // green
 
-  ad_csc_1 #(.DELAY_DATA_WIDTH(1)) i_csc_1_G (
+  ad_csc  #(
+    .MUL_COEF_DW (18),
+    .SUM_COEF_DW (28),
+    .YCbCr_2_RGB (1))
+  i_csc_G (
     .clk (clk),
     .sync (1'd0),
     .data (CrYCb_data),
@@ -84,7 +93,11 @@ module ad_csc_CrYCb2RGB #(
 
   // blue
 
-  ad_csc_1 #(.DELAY_DATA_WIDTH(1)) i_csc_1_B (
+  ad_csc #(
+    .MUL_COEF_DW (18),
+    .SUM_COEF_DW (28),
+    .YCbCr_2_RGB (1))
+  i_csc_B (
     .clk (clk),
     .sync (1'd0),
     .data (CrYCb_data),
