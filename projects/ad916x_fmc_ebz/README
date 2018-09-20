@@ -1,0 +1,9 @@
+Compatible boards: 
+  AD916(2,4)-FMC-EBZ 	
+  AD916(2,4)-FMCB-EBZ
+
+JESD204 MODE 
+  L = 8, M = 1, F = 1, S = 4
+
+1 channel (real) @ 5GSPS 
+
