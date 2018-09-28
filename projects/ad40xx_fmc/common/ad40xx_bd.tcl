@@ -15,6 +15,7 @@ current_bd_instance /spi_ad40xx
   create_bd_pin -dir I -type clk clk
   create_bd_pin -dir I -type rst resetn
   create_bd_pin -dir I -type clk spi_clk
+  create_bd_pin -dir O irq
   create_bd_intf_pin -mode Master -vlnv analog.com:interface:spi_master_rtl:1.0 m_spi
   create_bd_intf_pin -mode Master -vlnv xilinx.com:interface:axis_rtl:1.0 M_AXIS_SAMPLE
 
@@ -89,6 +90,7 @@ current_bd_instance /spi_ad40xx
   ad_connect trigger_gen/pulse offload/trigger
 
   ad_connect resetn axi/s_axi_aresetn
+  ad_connect irq axi/irq
 
 current_bd_instance /
 
@@ -127,6 +129,7 @@ ad_cpu_interconnect 0x44a00000 spi_ad40xx/axi
 ad_cpu_interconnect 0x44a30000 axi_ad40xx_dma
 
 ad_cpu_interrupt "ps-13" "mb-13" axi_ad40xx_dma/irq
+ad_cpu_interrupt "ps-12" "mb-12" /spi_ad40xx/irq
 
 ad_mem_hp2_interconnect sys_cpu_clk sys_ps7/S_AXI_HP2
 ad_mem_hp2_interconnect sys_cpu_clk axi_ad40xx_dma/m_dest_axi
