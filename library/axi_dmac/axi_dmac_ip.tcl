@@ -9,6 +9,7 @@ adi_ip_files axi_dmac [list \
   "$ad_hdl_dir/library/common/up_axi.v" \
   "inc_id.vh" \
   "resp.vh" \
+  "axi_dmac_framelock.v" \
   "axi_dmac_burst_memory.v" \
   "axi_dmac_regmap.v" \
   "axi_dmac_regmap_request.v" \
@@ -191,6 +192,32 @@ foreach port {"s_axis_user" "fifo_wr_sync"} {
 	set_property DRIVER_VALUE "1" [ipx::get_ports $port]
 }
 
+adi_add_bus "m_framelock" "master" \
+  "analog.com:interface:if_framelock_rtl:1.0" \
+  "analog.com:interface:if_framelock:1.0" \
+  { \
+    {"m_frame_in" "s2m_framelock"} \
+    {"m_frame_out" "m2s_framelock"} \
+  }
+adi_set_bus_dependency "m_framelock" "m_framelock" \
+  "(spirit:decode(id('MODELPARAM_VALUE.DMA_TYPE_SRC')) != 0 and \
+    spirit:decode(id('MODELPARAM_VALUE.DMA_TYPE_DEST')) = 0 and \
+    spirit:decode(id('MODELPARAM_VALUE.ENABLE_FRAME_LOCK')) = 1)"
+adi_add_bus_clock "s_axis_aclk" "m_framelock"
+
+adi_add_bus "s_framelock" "slave" \
+  "analog.com:interface:if_framelock_rtl:1.0" \
+  "analog.com:interface:if_framelock:1.0" \
+  { \
+    {"s_frame_in" "m2s_framelock"} \
+    {"s_frame_out" "s2m_framelock"} \
+  }
+adi_set_bus_dependency "s_framelock" "s_framelock" \
+  "(spirit:decode(id('MODELPARAM_VALUE.DMA_TYPE_SRC')) = 0 and \
+    spirit:decode(id('MODELPARAM_VALUE.DMA_TYPE_DEST')) != 0 and \
+    spirit:decode(id('MODELPARAM_VALUE.ENABLE_FRAME_LOCK')) = 1)"
+adi_add_bus_clock "s_axis_aclk" "s_framelock"
+
 set cc [ipx::current_core]
 
 # The core does not issue narrow bursts
@@ -218,6 +245,7 @@ foreach {k v} { \
 		"ASYNC_CLK_DEST_REQ" "true" \
 		"CYCLIC" "false" \
 		"DMA_2D_TRANSFER" "false" \
+		"ENABLE_FRAME_LOCK" "false" \
 		"SYNC_TRANSFER_START" "false" \
 		"AXI_SLICE_SRC" "false" \
 		"AXI_SLICE_DEST" "false" \
@@ -266,6 +294,12 @@ foreach dir {"SRC" "DEST"} {
 	[ipx::get_user_parameters DMA_TYPE_${dir} -of_objects $cc]
 }
 
+set_property -dict [list \
+  "enablement_tcl_expr" "\$DMA_2D_TRANSFER == true && \$CYCLIC == true" \
+] \
+[ipx::get_user_parameters ENABLE_FRAME_LOCK -of_objects $cc]
+
+# Set up page layout
 set page0 [ipgui::get_pagespec -name "Page 0" -component $cc]
 set g [ipgui::add_group -name {DMA Endpoint Configuration} -component $cc \
 		-parent $page0 -display_name {DMA Endpoint Configuration} \
@@ -352,6 +386,12 @@ set_property -dict [list \
 	"display_name" "2D Transfer Support" \
 ] $p
 
+set p [ipgui::get_guiparamspec -name "ENABLE_FRAME_LOCK" -component $cc]
+ipgui::move_param -component $cc -order 2 $p -parent $feature_group
+set_property -dict [list \
+  "display_name" "Frame Locking Support" \
+] $p
+
 set clk_group [ipgui::add_group -name {Clock Domain Configuration} -component $cc \
 		-parent $page0 -display_name {Clock Domain Configuration}]
 
@@ -391,6 +431,7 @@ set_property -dict [list \
 ipgui::remove_param -component $cc [ipgui::get_guiparamspec -name "DMA_AXI_ADDR_WIDTH" -component $cc]
 ipgui::remove_param -component $cc [ipgui::get_guiparamspec -name "AXI_ID_WIDTH_SRC" -component $cc]
 ipgui::remove_param -component $cc [ipgui::get_guiparamspec -name "AXI_ID_WIDTH_DEST" -component $cc]
+ipgui::remove_param -component $cc [ipgui::get_guiparamspec -name "MAX_NUM_FRAMES" -component $cc]
 
 
 ipx::create_xgui_files [ipx::current_core]

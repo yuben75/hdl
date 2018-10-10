@@ -23,6 +23,7 @@ ad_ip_files axi_dmac [list \
   $ad_hdl_dir/library/common/ad_mem.v \
   inc_id.vh \
   resp.vh \
+  axi_dmac_framelock.v \
   axi_dmac_burst_memory.v \
   axi_dmac_regmap.v \
   axi_dmac_regmap_request.v \
