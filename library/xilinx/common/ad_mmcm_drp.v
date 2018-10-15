@@ -38,7 +38,7 @@
 
 module ad_mmcm_drp #(
 
-  parameter   MMCM_DEVICE_TYPE = 0,
+  parameter   MMCM_DEVICE_SERIES = 0,
   parameter   MMCM_CLKIN_PERIOD  = 1.667,
   parameter   MMCM_CLKIN2_PERIOD  = 1.667,
   parameter   MMCM_VCO_DIV  = 6,
@@ -72,7 +72,7 @@ module ad_mmcm_drp #(
   output  reg             up_drp_ready,
   output  reg             up_drp_locked);
 
-  localparam  MMCM_DEVICE_7SERIES = 0;
+  localparam  MMCM_DEVICE_7SERIES = 1;
   localparam  MMCM_DEVICE_ULTRASCALE = 2;
 
 
@@ -110,7 +110,7 @@ module ad_mmcm_drp #(
   // instantiations
 
   generate
-  if (MMCM_DEVICE_TYPE == MMCM_DEVICE_7SERIES) begin
+  if (MMCM_DEVICE_SERIES == MMCM_DEVICE_7SERIES) begin
     MMCME2_ADV #(
       .BANDWIDTH ("OPTIMIZED"),
       .CLKOUT4_CASCADE ("FALSE"),
@@ -175,7 +175,7 @@ module ad_mmcm_drp #(
       BUFG i_clk_1_bufg   (.I (mmcm_clk_1_s),   .O (mmcm_clk_1));
       BUFG i_clk_2_bufg   (.I (mmcm_clk_2_s),   .O (mmcm_clk_2));
 
-  end else if (MMCM_DEVICE_TYPE == MMCM_DEVICE_ULTRASCALE) begin
+  end else if (MMCM_DEVICE_SERIES == MMCM_DEVICE_ULTRASCALE) begin
     MMCME3_ADV #(
       .BANDWIDTH ("OPTIMIZED"),
       .CLKOUT4_CASCADE ("FALSE"),
