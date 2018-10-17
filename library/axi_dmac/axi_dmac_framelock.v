@@ -57,7 +57,8 @@ module axi_dmac_framelock #(
   input [DMA_LENGTH_WIDTH-1:0] req_y_length,
   input [DMA_LENGTH_WIDTH-1:0] req_dest_stride,
   input [DMA_LENGTH_WIDTH-1:0] req_src_stride,
-  input [MAX_NUM_FRAMES_WIDTH-1:0] req_flock_framenum,
+  input [MAX_NUM_FRAMES_WIDTH:0] req_flock_framenum,
+  input [MAX_NUM_FRAMES_WIDTH:0] req_flock_distance,
   input [DMA_AXI_ADDR_WIDTH-1:0] req_flock_stride,
   input req_flock_en,
   input req_sync_transfer_start,
@@ -122,51 +123,43 @@ generate if (ENABLE_FRAME_LOCK == 1) begin
                                       BYTES_PER_BEAT_WIDTH_SRC :
                                       BYTES_PER_BEAT_WIDTH_DEST;
 
-  reg [MAX_NUM_FRAMES_WIDTH-1:0] transfer_id;
-  reg [DMA_AXI_ADDR_WIDTH-1:BYTES_PER_BEAT_WIDTH] req_address;
+  reg [MAX_NUM_FRAMES_WIDTH-1:0] transfer_id = 'h0;
+  reg [MAX_NUM_FRAMES_WIDTH-1:0] cur_frame_id = 'h0;
+  reg [DMA_AXI_ADDR_WIDTH-1:BYTES_PER_BEAT_WIDTH] req_address = 'h0;
 
+  wire [MAX_NUM_FRAMES_WIDTH:0] transfer_id_p1;
 
-  /*
-  reg [MAX_NUM_FRAMES_WIDTH-1:0] response_id;
-  reg frame_out_valid = 1'b0;
+  reg wait_distance = 1'b0;
+  wire calc_enable;
+  wire calc_done;
+  wire enable_out_req;
 
-  always @(posedge req_aclk) begin
-    if (req_aresetn == 1'b0) begin
-      frame_out_valid <= 1'b0;
-    end else begin
-      if (out_req_valid & out_req_ready) begin
-        frame_out_valid <= req_flock_en;
-      end
-    end
-  end
-*/
+  assign calc_enable = ~req_ready & out_req_ready & enable_out_req;
+  assign transfer_id_p1 = transfer_id + 1'b1;
+
   always @(posedge req_aclk) begin
     if (req_aresetn == 1'b0) begin
       transfer_id <= 'h0;
-    end else begin
-      if (out_req_valid & out_req_ready) begin
-        if (transfer_id == req_flock_framenum) begin
-          transfer_id <= 'h0;
-        end else begin
-          transfer_id <= transfer_id + 1'b1;
-        end
+      req_address <= 'h0;
+    end else if (req_valid & req_ready) begin
+      transfer_id <= 'h0;
+      req_address <= FRAME_LOCK_MODE ? req_src_address : req_dest_address;
+    end else if (calc_enable) begin
+      if (transfer_id_p1 == req_flock_framenum) begin
+        transfer_id <= 'h0;
+        req_address <= FRAME_LOCK_MODE ? req_src_address : req_dest_address;
+      end else begin
+        transfer_id <= transfer_id_p1[MAX_NUM_FRAMES_WIDTH-1:0];
+        req_address <= req_address + req_flock_stride[DMA_LENGTH_WIDTH-1:BYTES_PER_BEAT_WIDTH];
       end
     end
   end
 
   always @(posedge req_aclk) begin
     if (req_aresetn == 1'b0) begin
-      req_address <= 'h0;
-    end else begin
-      if (req_valid & req_ready) begin
-        req_address <= FRAME_LOCK_MODE ? req_src_address : req_dest_address;
-      end else if (out_req_valid & out_req_ready) begin
-        if (transfer_id == req_flock_framenum) begin
-          req_address <= FRAME_LOCK_MODE ? req_src_address : req_dest_address;
-        end else begin
-          req_address <= req_address + req_flock_stride[DMA_LENGTH_WIDTH-1:BYTES_PER_BEAT_WIDTH];
-        end
-      end
+      cur_frame_id <= 'h0;
+    end else if (out_req_valid & out_req_ready) begin
+      cur_frame_id <= transfer_id;
     end
   end
 
@@ -180,43 +173,62 @@ generate if (ENABLE_FRAME_LOCK == 1) begin
     end
   end
 
-  always @(posedge req_aclk) begin
-    if (req_aresetn == 1'b0) begin
-      out_req_valid <= 1'b0;
-    end else if (req_valid & req_ready) begin
-      out_req_valid <= 1'b1;
-    end else if (out_req_valid & out_req_ready) begin
-      out_req_valid <= req_cyclic;
-    end
+  always @(*) begin
+    out_req_valid = calc_enable & (calc_done || ~req_flock_en);
   end
 
   assign out_req_src_address = ~FRAME_LOCK_MODE ? 'h0 : req_address;
   assign out_req_dest_address = FRAME_LOCK_MODE ? 'h0 : req_address;
-/*
+
   if (FRAME_LOCK_MODE == 0) begin
     // Master mode logic
-    wire m_frame_in_valid;
-    assign m_frame_in_valid = m_frame_in[MAX_NUM_FRAMES_WIDTH];
-
 
     // The master will iterate over the buffers one by one in a cyclic way
     // and by looking at slave current buffer keeping that untouched.
 
+    assign m_frame_out = cur_frame_id;
 
-    assign m_frame_out[MAX_NUM_FRAMES_WIDTH] = frame_out_valid;
-    assign m_frame_out[MAX_NUM_FRAMES_WIDTH-1:0] = response_id;
+    assign calc_done = m_frame_in != transfer_id;
+
+    assign enable_out_req = 1'b1;
 
   end else begin
     // Slave mode logic
-    wire s_frame_in_valid;
-    assign s_frame_in_valid = s_frame_in[MAX_NUM_FRAMES_WIDTH];
+
+    wire [MAX_NUM_FRAMES_WIDTH:0] target_id;
+    wire [MAX_NUM_FRAMES_WIDTH-1:0] target_id_wrapped;
 
     // The slave will stay behind and try to keep up with the master at a distance.
     // This will be done either by repeating or skipping buffers depending on the
     // frame rate relationship of source and sink.
+    //
+
+    assign s_frame_out[MAX_NUM_FRAMES_WIDTH-1:0] = cur_frame_id;
+
+    assign target_id = s_frame_in - req_flock_distance;
+
+    assign target_id_wrapped = target_id[MAX_NUM_FRAMES_WIDTH] ? target_id + req_flock_framenum:
+                               target_id[MAX_NUM_FRAMES_WIDTH-1:0];
+
+    assign calc_done = target_id_wrapped == transfer_id;
+
+    // Slave will start to operate once the master starts to write the frame at
+    // the programmed distance.
+    //
+    always @(posedge req_aclk) begin
+      if (req_aresetn == 1'b0) begin
+        wait_distance <= 1'b0;
+      end else if (req_valid & req_ready) begin
+        wait_distance <= req_cyclic && req_flock_en;
+      end else if (s_frame_in == req_flock_distance) begin
+        wait_distance <= 1'b0;
+      end
+    end
+
+    assign enable_out_req = ~wait_distance;
 
   end
-*/
+
 
 end else begin
   always @(*) begin
